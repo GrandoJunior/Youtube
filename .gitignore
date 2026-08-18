@@ -1,0 +1,21 @@
+# Ambientes e Dependencias
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+dist/
+build/
+
+# Midia de Teste e Binarios Pesados
+downtest/
+*.mp4
+*.mkv
+*.avi
+*.mp3
+*.flac
+*.wav
+bin/
+
+# Logs e Temporarios
+*.log
+*.tmp
