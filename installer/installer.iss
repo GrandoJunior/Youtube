@@ -39,8 +39,11 @@ Name: "portuguese"; MessagesFile: "compiler:Languages\Portuguese.isl"
 Source: "..\bin\{#AppExe}"; DestDir: "{app}"; Flags: ignoreversion
 
 ; Scripts externos (atualizáveis sem recompilar o EXE)
+; updater.py sincroniza estes mesmos arquivos com o repositório git a cada
+; inicialização, portanto uma nova instalação não é necessária para atualizar.
 Source: "..\sources\main.py";      DestDir: "{app}"; Flags: ignoreversion
 Source: "..\sources\setup_env.py"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\sources\updater.py";   DestDir: "{app}"; Flags: ignoreversion
 Source: "..\sources\splash.png";   DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
@@ -53,6 +56,10 @@ Name: "{autodesktop}\{#AppName}"; \
 [UninstallDelete]
 ; Remove toda a pasta de dependências ao desinstalar
 Type: filesandordirs; Name: "{app}\dependences"
+; Artefatos gerados pelo atualizador automático
+Type: files; Name: "{app}\.update_state.json"
+Type: files; Name: "{app}\updater.log"
+Type: files; Name: "{app}\*.bak"
 
 [Code]
 // Garante que nenhuma instância esteja rodando antes de atualizar

@@ -3,10 +3,12 @@
 YouTube Downloader — Bootstrapper
 ----------------------------------
 Este EXE é mínimo: apenas localiza o diretório de instalação,
-verifica dependências e lança main.py externamente.
+busca atualizações no repositório git, verifica dependências e lança
+main.py externamente.
 
-Para atualizar a aplicação: substitua main.py e/ou setup_env.py
-no diretório de instalação. Não é necessário recompilar.
+Para atualizar a aplicação: basta publicar main.py, setup_env.py e/ou
+updater.py no repositório — updater.py os sincroniza a cada inicialização.
+Não é necessário recompilar nem reinstalar.
 """
 import sys
 import os
@@ -36,6 +38,18 @@ else:
 
 if INSTALL_DIR not in sys.path:
     sys.path.insert(0, INSTALL_DIR)
+
+# ── Atualização automática (git) ──
+# Roda ANTES de setup_env.py/main.py para que esta mesma execução já use a
+# versão mais recente publicada no repositório. Falha aberta: qualquer erro
+# (sem rede, repositório indisponível) apenas segue com a versão instalada.
+_updater = os.path.join(INSTALL_DIR, 'updater.py')
+if os.path.isfile(_updater):
+    try:
+        runpy.run_path(_updater, init_globals={'INSTALL_DIR': INSTALL_DIR},
+                       run_name='__update__')
+    except Exception:
+        pass
 
 # ── Verificação de dependências ──
 _setup = os.path.join(INSTALL_DIR, 'setup_env.py')

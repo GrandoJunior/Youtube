@@ -74,10 +74,11 @@ def build_launcher():
     os.makedirs(BUILD_DIR, exist_ok=True)
     os.makedirs(WORK_DIR, exist_ok=True)
 
-    # Módulos usados nos scripts externos (setup_env.py, main.py) carregados via
-    # runpy.run_path() — o PyInstaller não os detecta por análise estática.
+    # Módulos usados nos scripts externos (updater.py, setup_env.py, main.py)
+    # carregados via runpy.run_path() — o PyInstaller não os detecta por
+    # análise estática.
     hidden_imports = [
-        # urllib (setup_env.py)
+        # urllib (updater.py, setup_env.py)
         "urllib.request", "urllib.error", "urllib.parse", "urllib.response",
         "urllib.robotparser",
         # stdlib geral (setup_env.py + main.py)
@@ -90,6 +91,7 @@ def build_launcher():
         "email", "email.message", "email.parser", "http", "http.client",
         "ssl", "socket", "encodings.idna",
         # [A3] adicionados para normalização de áudio (main.py v2.4+)
+        # e para o atualizador automático (updater.py)
         "json", "re",
     ]
 
