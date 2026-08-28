@@ -4,7 +4,7 @@
 ; ─────────────────────────────────────────────────────────────────────────────
 
 #define AppName      "YouTube Downloader"
-#define AppVersion   "2.0"
+#define AppVersion   "2.1"
 #define AppExe       "launcher.exe"
 #define AppPublisher "GGJ Dev"
 #define AppId        "{{B7A4C2D1-F3E5-4B8A-9C2D-1A3B5C7D9E2F}"

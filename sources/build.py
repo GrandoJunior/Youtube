@@ -6,13 +6,16 @@ Etapas:
   1. Verifica / instala PyInstaller
   2. Compila launcher.py → bin/launcher.exe  (bootstrapper mínimo)
   3. Localiza o Inno Setup Compiler (ISCC.exe)
-  4. Gera o instalador  → bin/YoutubeDownloader_Setup_v2.0.exe
+  4. Gera o instalador  → bin/YoutubeDownloader_Setup_v<AppVersion>.exe
+     (versao lida de installer/installer.iss — fonte unica)
   5. Executa o instalador silenciosamente (install local, usuário atual)
 """
 import sys
 import os
 import subprocess
 import shutil
+import io
+import re
 
 BASE_DIR    = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # raiz do projeto
 SRC_DIR     = os.path.join(BASE_DIR, 'sources')
@@ -25,7 +28,20 @@ SPLASH      = os.path.join(SRC_DIR, 'splash.png')
 LAUNCHER    = os.path.join(SRC_DIR, 'launcher.py')
 LAUNCHER_EXE = os.path.join(BIN_DIR, 'launcher.exe')
 INSTALLER_ISS = os.path.join(INST_DIR, 'installer.iss')
-INSTALLER_EXE = os.path.join(BIN_DIR, 'YoutubeDownloader_Setup_v2.0.exe')
+
+
+def read_app_version(iss_path: str) -> str:
+    """Le o AppVersion definido no installer.iss (fonte unica da versao)."""
+    with io.open(iss_path, encoding='utf-8-sig') as fh:
+        for line in fh:
+            m = re.match(r'\s*#define\s+AppVersion\s+"([^"]+)"', line)
+            if m:
+                return m.group(1)
+    raise RuntimeError(f'AppVersion nao encontrado em {iss_path}')
+
+
+APP_VERSION   = read_app_version(INSTALLER_ISS)
+INSTALLER_EXE = os.path.join(BIN_DIR, f'YoutubeDownloader_Setup_v{APP_VERSION}.exe')
 
 # ── Candidatos de Inno Setup ──
 ISCC_CANDIDATES = [
@@ -145,7 +161,7 @@ def install_locally():
 
 def main():
     print("=" * 60)
-    print("  YouTube Downloader — Pipeline de Build v2.0")
+    print(f"  YouTube Downloader — Pipeline de Build v{APP_VERSION}")
     print("=" * 60)
 
     ensure_pyinstaller()
