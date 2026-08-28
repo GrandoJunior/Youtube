@@ -76,34 +76,52 @@ def _fetch_text(url: str):
         return None
 
 
-def _expected_ytdlp_sha() -> str:
-    """Extrai do SHA2-256SUMS a soma da linha cujo arquivo é exatamente 'yt-dlp.exe'."""
-    text = _fetch_text(YT_DLP_SUMS_URL)
+_HEX_DIGITS = '0123456789abcdef'
+
+
+def _is_sha256(token: str) -> bool:
+    """True se `token` for exatamente 64 digitos hexadecimais."""
+    t = token.strip().lstrip('*').lower()
+    return len(t) == 64 and all(c in _HEX_DIGITS for c in t)
+
+
+def _extract_sha256(text: str, filename: str = "") -> str:
+    """Extrai um SHA-256 de um arquivo de somas, tolerando os formatos que os
+    fornecedores publicam -- e mudam sem aviso:
+
+      - hash hexadecimal isolado          -> gyan.dev (.sha256)
+      - 'hash  arquivo' / 'hash *arquivo' -> sha256sum classico, uv
+      - blocos 'Algorithm/Hash/Path'      -> Get-FileHash do PowerShell (Deno)
+
+    Quando `filename` e informado, prioriza a linha daquele arquivo, necessario
+    em arquivos com varias entradas como o SHA2-256SUMS do yt-dlp. Retorna ""
+    se nao houver hash reconhecivel (o chamador decide como tratar)."""
     if not text:
         return ""
-    for ln in text.splitlines():
-        parts = ln.split()
-        if len(parts) >= 2 and parts[-1].strip().lower() == 'yt-dlp.exe':
-            return parts[0].strip().lower()
+    if filename:
+        alvo = filename.strip().lower()
+        for ln in text.splitlines():
+            parts = ln.split()
+            if len(parts) >= 2 and parts[-1].strip().lstrip('*').lower() == alvo:
+                for tok in parts:
+                    if _is_sha256(tok):
+                        return tok.strip().lstrip('*').lower()
+    for tok in text.split():
+        if _is_sha256(tok):
+            return tok.strip().lstrip('*').lower()
     return ""
 
 
+def _expected_ytdlp_sha() -> str:
+    return _extract_sha256(_fetch_text(YT_DLP_SUMS_URL), 'yt-dlp.exe')
+
+
 def _expected_ffmpeg_sha() -> str:
-    """O .sha256 do gyan.dev contém apenas o hash hexadecimal."""
-    text = _fetch_text(FFMPEG_SHA_URL)
-    if not text:
-        return ""
-    tokens = text.split()
-    return tokens[0].strip().lower() if tokens else ""
+    return _extract_sha256(_fetch_text(FFMPEG_SHA_URL))
 
 
 def _expected_deno_sha() -> str:
-    """O .sha256sum do Deno no GitHub contém 'hash  filename'."""
-    text = _fetch_text(DENO_SHA_URL)
-    if not text:
-        return ""
-    tokens = text.split()
-    return tokens[0].strip().lower() if tokens else ""
+    return _extract_sha256(_fetch_text(DENO_SHA_URL))
 
 
 def _verify_or_abort(data: bytes, expected: str, label: str):

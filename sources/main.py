@@ -93,10 +93,45 @@ def _http_text(url: str) -> str:
         return ""
 
 
+_HEX_DIGITS = '0123456789abcdef'
+
+
+def _is_sha256(token: str) -> bool:
+    """True se `token` for exatamente 64 digitos hexadecimais."""
+    t = token.strip().lstrip('*').lower()
+    return len(t) == 64 and all(c in _HEX_DIGITS for c in t)
+
+
+def _extract_sha256(text: str, filename: str = "") -> str:
+    """Extrai um SHA-256 de um arquivo de somas, tolerando os formatos que os
+    fornecedores publicam -- e mudam sem aviso:
+
+      - hash hexadecimal isolado          -> gyan.dev (.sha256)
+      - 'hash  arquivo' / 'hash *arquivo' -> sha256sum classico, uv
+      - blocos 'Algorithm/Hash/Path'      -> Get-FileHash do PowerShell (Deno)
+
+    Quando `filename` e informado, prioriza a linha daquele arquivo, necessario
+    em arquivos com varias entradas como o SHA2-256SUMS do yt-dlp. Retorna ""
+    se nao houver hash reconhecivel (o chamador decide como tratar)."""
+    if not text:
+        return ""
+    if filename:
+        alvo = filename.strip().lower()
+        for ln in text.splitlines():
+            parts = ln.split()
+            if len(parts) >= 2 and parts[-1].strip().lstrip('*').lower() == alvo:
+                for tok in parts:
+                    if _is_sha256(tok):
+                        return tok.strip().lstrip('*').lower()
+    for tok in text.split():
+        if _is_sha256(tok):
+            return tok.strip().lstrip('*').lower()
+    return ""
+
+
 def _verify_sha256(data: bytes, sums_text: str, label: str):
     """Falha FECHADA em divergência; falha ABERTA se não há hash de referência."""
-    tokens = sums_text.split() if sums_text else []
-    expected = tokens[0].lower() if tokens else ""
+    expected = _extract_sha256(sums_text)
     if not expected:
         return
     actual = hashlib.sha256(data).hexdigest().lower()
