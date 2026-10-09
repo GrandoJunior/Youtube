@@ -367,6 +367,10 @@ class WizardApp(tk.Tk):
         self.quality         = tk.StringVar(master=self, value="best (MAX)")
         self.use_cookies     = tk.BooleanVar(master=self, value=False)
         self.browser_cookies = tk.StringVar(master=self, value="chrome")
+        # Arquivo cookies.txt (formato Netscape). Tem prioridade sobre o browser:
+        # no Windows, Chrome/Edge usam App-Bound Encryption e o yt-dlp não
+        # consegue ler os cookies diretamente do perfil.
+        self.cookies_file    = tk.StringVar(master=self, value="")
         self.destination     = tk.StringVar(master=self, value="")
         self.normalize_mode  = tk.StringVar(master=self, value="ebu_r128")
         # Modo de operação: "download" | "normalize_only"
@@ -375,6 +379,9 @@ class WizardApp(tk.Tk):
         self.normalize_recursive = tk.BooleanVar(master=self, value=False)
         # Remoção de vocais (instrumental) — habilitável só com GPU e áudio.
         self.remove_vocals       = tk.BooleanVar(master=self, value=False)
+        # Baixar a playlist inteira quando o link traz "&list=". Desmarcado por
+        # padrão: só o vídeo do link (--no-playlist).
+        self.download_playlist   = tk.BooleanVar(master=self, value=False)
         self.gpu_available       = _has_nvidia_gpu()
         self.yt_dlp_path     = _bin('yt-dlp.exe')
         self.ffmpeg_path     = _bin('ffmpeg.exe')
@@ -449,9 +456,14 @@ class WizardApp(tk.Tk):
             self.use_cookies.set(prefs['use_cookies'])
         if prefs.get('browser_cookies'):
             self.browser_cookies.set(prefs['browser_cookies'])
+        saved_cookies = prefs.get('cookies_file')
+        if saved_cookies and os.path.isfile(saved_cookies):
+            self.cookies_file.set(saved_cookies)
         if prefs.get('normalize_mode') in ('ebu_r128', 'none'):
             self.normalize_mode.set(prefs['normalize_mode'])
         # Remoção de vocais só é sugerida se a máquina tiver GPU.
+        if isinstance(prefs.get('download_playlist'), bool):
+            self.download_playlist.set(prefs['download_playlist'])
         if prefs.get('remove_vocals') and self.gpu_available:
             self.remove_vocals.set(True)
 
@@ -474,8 +486,10 @@ class WizardApp(tk.Tk):
             'audio_quality':   self._last_audio_quality,
             'use_cookies':     bool(self.use_cookies.get()),
             'browser_cookies': self.browser_cookies.get(),
+            'cookies_file':    self.cookies_file.get().strip(),
             'normalize_mode':  self.normalize_mode.get(),
             'remove_vocals':   bool(self.remove_vocals.get()),
+            'download_playlist': bool(self.download_playlist.get()),
             'destination':     self.destination.get(),
         }
         try:
@@ -673,6 +687,16 @@ class PageOptions(ttk.Frame):
         # Memoriza a escolha por tipo (vídeo/áudio) para sugerir depois.
         self.qual_combo.bind("<<ComboboxSelected>>", self._on_quality_selected)
 
+        pf = ttk.LabelFrame(self, text="  PLAYLIST  ")
+        pf.pack(fill="x", pady=(0, 10))
+        ttk.Checkbutton(pf,
+                        text="Baixar a lista de reprodução inteira, se o link tiver uma",
+                        variable=self.controller.download_playlist
+                        ).pack(anchor='w', padx=16, pady=(8, 2))
+        ttk.Label(pf, foreground="#888",
+                  text="  Desmarcado: baixa só o vídeo do link, ignorando o \"&list=\"."
+                  ).pack(anchor='w', padx=16, pady=(0, 8))
+
         cf = ttk.LabelFrame(self, text="  AUTHENTICATION (OPTIONAL)  ")
         cf.pack(fill="x", pady=(0, 10))
         ttk.Checkbutton(cf,
@@ -684,7 +708,19 @@ class PageOptions(ttk.Frame):
             cf, textvariable=self.controller.browser_cookies,
             values=["chrome", "firefox", "edge", "opera", "brave", "vivaldi"],
             state="readonly")
-        self.browser_combo.pack(fill='x', padx=16, pady=(0, 10))
+        self.browser_combo.pack(fill='x', padx=16, pady=(0, 4))
+        ttk.Label(cf, foreground="#888",
+                  text=("  Só necessário se o download falhar sem cookies. Chrome/Edge no "
+                        "Windows bloqueiam a leitura direta; use Firefox ou um cookies.txt:")
+                  ).pack(anchor='w', padx=16, pady=(0, 2))
+        ck_row = ttk.Frame(cf)
+        ck_row.pack(fill='x', padx=16, pady=(0, 10))
+        self.cookies_entry = ttk.Entry(ck_row,
+                                       textvariable=self.controller.cookies_file)
+        self.cookies_entry.pack(side='left', fill='x', expand=True)
+        self.cookies_btn = ttk.Button(ck_row, text="cookies.txt...",
+                                      command=self._browse_cookies)
+        self.cookies_btn.pack(side='left', padx=(8, 0))
 
         # ── Pós-processamento (apenas para áudio) ──────────────────────────
         self._norm_frame = ttk.LabelFrame(self, text="  POST-PROCESSING  (somente áudio)  ")
@@ -729,6 +765,13 @@ class PageOptions(ttk.Frame):
     def reset(self):
         self._update()
 
+    def _browse_cookies(self):
+        f = filedialog.askopenfilename(
+            title="Selecione o arquivo cookies.txt (formato Netscape)",
+            filetypes=[("Cookies", "*.txt"), ("Todos", "*.*")])
+        if f:
+            self.controller.cookies_file.set(f)
+
     def _on_quality_selected(self, _event=None):
         if self.controller.download_type.get() == 'audio':
             self.controller._last_audio_quality = self.controller.quality.get()
@@ -752,8 +795,10 @@ class PageOptions(ttk.Frame):
                 self.controller.quality.set(remembered)
             else:
                 self.qual_combo.current(0)
-        self.browser_combo.config(
-            state="readonly" if self.controller.use_cookies.get() else "disabled")
+        ck_on = self.controller.use_cookies.get()
+        self.browser_combo.config(state="readonly" if ck_on else "disabled")
+        self.cookies_entry.config(state="normal" if ck_on else "disabled")
+        self.cookies_btn.config(state="normal" if ck_on else "disabled")
         # Habilita/desabilita seção de normalização conforme o tipo
         norm_state = "normal" if is_audio else "disabled"
         for rb in self._norm_radios:
@@ -982,11 +1027,13 @@ class PageProgress(ttk.Frame):
         quality           = ctrl.quality.get()
         use_cookies       = ctrl.use_cookies.get()
         browser           = ctrl.browser_cookies.get()
+        cookies_file      = ctrl.cookies_file.get().strip()
         normalize_mode    = ctrl.normalize_mode.get()
         operation_mode    = ctrl.operation_mode.get()
         normalize_folder  = ctrl.normalize_folder.get().strip()
         normalize_recur   = ctrl.normalize_recursive.get()
         remove_vocals     = ctrl.remove_vocals.get()
+        download_playlist = ctrl.download_playlist.get()
         yt_dlp_path       = ctrl.yt_dlp_path
         ffmpeg_path       = ctrl.ffmpeg_path
         deno_path         = ctrl.deno_path
@@ -1039,11 +1086,30 @@ class PageProgress(ttk.Frame):
                         "--progress-template",
                         "download:PROG|%(progress._percent_str)s|%(progress._eta_str)s",
                         "--ignore-errors", "--no-mtime", "--no-cache-dir",
+                        # Link com "&list=": baixa a playlist inteira ou só o vídeo.
+                        "--yes-playlist" if download_playlist else "--no-playlist",
                     ]
+                    if download_playlist:
+                        self._safe_log("> MODE: PLAYLIST (todos os itens da lista)")
 
                     if use_cookies:
-                        cmd += ["--cookies-from-browser", browser]
-                        self._safe_log(f"> AUTH: COOKIES FROM {browser.upper()}")
+                        if cookies_file and os.path.isfile(cookies_file):
+                            cmd += ["--cookies", cookies_file]
+                            self._safe_log(f"> AUTH: COOKIES FILE {cookies_file}")
+                        else:
+                            if cookies_file:
+                                self._safe_log(
+                                    f"[WARN] cookies.txt não encontrado: {cookies_file}")
+                            cmd += ["--cookies-from-browser", browser]
+                            self._safe_log(f"> AUTH: COOKIES FROM {browser.upper()}")
+                    else:
+                        # Sem cookies: tenta primeiro o cliente "web_embedded", que
+                        # não cai no "Sign in to confirm you're not a bot" nem
+                        # exige PO Token; "default" fica como fallback para vídeos
+                        # que não permitem incorporação.
+                        cmd += ["--extractor-args",
+                                "youtube:player_client=web_embedded,default"]
+                        self._safe_log("> AUTH: NONE (client web_embedded + default)")
 
                     if dtype == "audio":
                         cmd += ["-x", "--audio-format", "mp3",
