@@ -549,6 +549,52 @@ def _make_nav_bar(parent: ttk.Frame) -> ttk.Frame:
     return btn_row
 
 
+def _find_explorer_window(path: str):
+    """HWND da janela/aba do Explorer que já exibe `path`, ou None.
+    Enumera via Shell.Application (COM) num PowerShell oculto, sem pywin32."""
+    if os.name != 'nt':
+        return None
+    target = os.path.normpath(path).rstrip('\\').lower()
+    ps = (
+        "[Console]::OutputEncoding=[Text.Encoding]::UTF8;"
+        "foreach ($w in (New-Object -ComObject Shell.Application).Windows()) {"
+        " try { $p = $w.Document.Folder.Self.Path } catch { continue };"
+        " if ($p) { Write-Output (\"$($w.HWND)|$p\") } }"
+    )
+    try:
+        out = subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
+            capture_output=True, encoding='utf-8', errors='replace', timeout=10,
+            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+    except Exception:
+        return None
+    for line in out.stdout.splitlines():
+        hwnd, _, p = line.strip().partition('|')
+        if hwnd.isdigit() and os.path.normpath(p).rstrip('\\').lower() == target:
+            return int(hwnd)
+    return None
+
+
+def _open_folder_once(path: str) -> bool:
+    """Abre `path` no Explorer. Se já houver janela/aba mostrando a pasta,
+    apenas a traz para frente em vez de abrir outra. True = reutilizou."""
+    hwnd = _find_explorer_window(path)
+    if hwnd:
+        try:
+            import ctypes
+            u32 = ctypes.windll.user32
+            u32.ShowWindow(hwnd, 9)        # SW_RESTORE: desminimiza se preciso
+            u32.SetForegroundWindow(hwnd)
+            return True
+        except Exception:
+            pass
+    try:
+        os.startfile(path)
+    except Exception:
+        pass
+    return False
+
+
 # ── Página 1: URLs ───────────────────────────────────────────────────────────
 class PageUrls(ttk.Frame):
     def __init__(self, parent, controller: WizardApp):
@@ -1053,8 +1099,7 @@ class PageProgress(ttk.Frame):
             self.after(0, self._on_done, run_id, "")
             return
 
-        ts       = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")  # [6] microssegundos
-        log_file = os.path.join(dest, f"system_log_{ts}.txt")
+        log_file = self._new_log_path(dest, "system_log")
         self._safe_log(f"> LOG PROTOCOL: {log_file}")
 
         try:
@@ -1259,6 +1304,18 @@ class PageProgress(ttk.Frame):
 
         self.after(0, self._on_done, run_id, dest)
 
+    @staticmethod
+    def _new_log_path(base_dir: str, prefix: str) -> str:
+        """Caminho de um novo log em <base_dir>/logs/<prefix>_<timestamp>.txt.
+        Cria a subpasta; se não conseguir, cai para a própria base_dir."""
+        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")  # [6] microssegundos
+        log_dir = os.path.join(base_dir, "logs")
+        try:
+            os.makedirs(log_dir, exist_ok=True)
+        except OSError:
+            log_dir = base_dir
+        return os.path.join(log_dir, f"{prefix}_{ts}.txt")
+
     def _run_normalize_only(self, run_id: int, folder: str,
                             recursive: bool, ffmpeg_path: str):
         """
@@ -1276,8 +1333,7 @@ class PageProgress(ttk.Frame):
         self._safe_log(f"> PASTA: {folder}")
         self._safe_log(f"> {total} arquivo(s) .mp3 encontrado(s). Iniciando normalização...")
 
-        ts       = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        log_file = os.path.join(folder, f"normalize_log_{ts}.txt")
+        log_file = self._new_log_path(folder, "normalize_log")
         self._safe_log(f"> LOG: {log_file}")
 
         try:
@@ -1424,10 +1480,10 @@ class PageProgress(ttk.Frame):
         self.btn_cancel.config(state="disabled", text="■  CANCELAR")  # [C-1]
 
         if dest and not self._cancel_event.is_set():
-            try:
-                os.startfile(dest)
-            except Exception:
-                pass
+            # Em thread: a enumeração das janelas do Explorer leva ~1 s e não
+            # deve travar a interface. Reaproveita a janela se já estiver aberta.
+            threading.Thread(target=_open_folder_once, args=(dest,),
+                             daemon=True).start()
 
 
 # ── Entry Point ──────────────────────────────────────────────────────────────
