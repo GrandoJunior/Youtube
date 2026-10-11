@@ -595,6 +595,95 @@ def _open_folder_once(path: str) -> bool:
     return False
 
 
+# ── Entrada por arquivos .txt ────────────────────────────────────────────────
+# Hosts aceitos pelo projeto (YouTube, Instagram, Facebook). Links de outros
+# domínios encontrados dentro dos .txt são ignorados e contados no resumo.
+_SUPPORTED_HOSTS = (
+    "youtube.com", "youtu.be", "youtube-nocookie.com",
+    "instagram.com", "facebook.com", "fb.watch",
+)
+_URL_RE = re.compile(r"""https?://[^\s<>"'`\[\]()]+""", re.IGNORECASE)
+
+
+def _is_supported_url(url: str) -> bool:
+    """True se o host do link pertence a uma plataforma suportada."""
+    m = re.match(r"https?://([^/?#]+)", url, re.IGNORECASE)
+    if not m:
+        return False
+    host = m.group(1).lower().split('@')[-1].split(':')[0]
+    return any(host == h or host.endswith('.' + h) for h in _SUPPORTED_HOSTS)
+
+
+def _extract_urls_from_text(text: str):
+    """Todas as URLs http(s) do texto, na ordem, sem pontuação final agarrada."""
+    return [u.rstrip('.,;:!?') for u in _URL_RE.findall(text)]
+
+
+def _collect_txt_files(path: str):
+    """Lista de .txt a ler a partir de um caminho: o próprio arquivo, ou todos
+    os .txt (1º nível, ordem alfabética) se for uma pasta. [] se não existir."""
+    if os.path.isfile(path):
+        return [path] if path.lower().endswith('.txt') else []
+    if os.path.isdir(path):
+        try:
+            names = sorted(n for n in os.listdir(path) if n.lower().endswith('.txt'))
+        except OSError:
+            return []
+        return [os.path.join(path, n) for n in names]
+    return []
+
+
+def _resolve_targets(lines):
+    """Converte as linhas coladas em lista final de URLs.
+
+    Cada linha pode ser uma URL (vai direto) ou o caminho de um .txt / pasta
+    com .txt (aspas opcionais). Os arquivos são varridos em busca de links das
+    plataformas suportadas. Retorna (urls, stats) com stats =
+    {files, found, unsupported, duplicates, missing}."""
+    urls, seen = [], set()
+    stats = {'files': [], 'found': 0, 'unsupported': 0, 'duplicates': 0,
+             'missing': []}
+
+    def _add(u):
+        if u in seen:
+            stats['duplicates'] += 1
+            return
+        seen.add(u)
+        urls.append(u)
+
+    for raw in lines:
+        line = raw.strip().strip('"\'')
+        if not line:
+            continue
+        if _URL_RE.match(line):
+            _add(line)
+            continue
+        files = _collect_txt_files(line)
+        if not files:
+            looks_like_path = (line.lower().endswith('.txt') or os.sep in line
+                               or '/' in line or (len(line) > 1 and line[1] == ':'))
+            if looks_like_path:
+                stats['missing'].append(line)   # inexistente, sem .txt ou não é .txt
+            else:
+                _add(line)                      # alvo literal (ex.: ID de vídeo)
+            continue
+        for fp in files:
+            try:
+                with open(fp, 'r', encoding='utf-8-sig', errors='replace') as fh:
+                    text = fh.read()
+            except OSError:
+                stats['missing'].append(fp)
+                continue
+            stats['files'].append(fp)
+            for u in _extract_urls_from_text(text):
+                if _is_supported_url(u):
+                    stats['found'] += 1
+                    _add(u)
+                else:
+                    stats['unsupported'] += 1
+    return urls, stats
+
+
 # ── Página 1: URLs ───────────────────────────────────────────────────────────
 class PageUrls(ttk.Frame):
     def __init__(self, parent, controller: WizardApp):
@@ -608,7 +697,8 @@ class PageUrls(ttk.Frame):
 
         self._subtitle = ttk.Label(
             self,
-            text="Paste Target URLs (YouTube, Instagram, Facebook) — one per line:",
+            text=("Cole URLs (YouTube, Instagram, Facebook), uma por linha — ou o caminho "
+                  "de arquivos .txt / pastas com .txt: os links dentro deles serão extraídos."),
             wraplength=600)
         self._subtitle.pack(anchor="w", pady=(0, 6))
 
@@ -620,6 +710,8 @@ class PageUrls(ttk.Frame):
         nav = _make_nav_bar(self)
         ttk.Button(nav, text="NEXT PHASE  ▶",
                    command=self._go_next).pack(side='right')
+        ttk.Button(nav, text="📄  ADD .TXT...",
+                   command=self._browse_txt).pack(side='left')
 
         # ── Separador visual ──
         div = ttk.Frame(self)
@@ -673,6 +765,18 @@ class PageUrls(ttk.Frame):
         if d:
             self.controller.normalize_folder.set(d)
 
+    def _browse_txt(self):
+        """Insere no campo os caminhos dos .txt escolhidos (um por linha)."""
+        files = filedialog.askopenfilenames(
+            title="Selecione arquivos .txt com links",
+            filetypes=[("Texto", "*.txt"), ("Todos", "*.*")])
+        if not files:
+            return
+        current = self.text_area.get("1.0", tk.END)
+        if current.strip() and not current.endswith("\n"):
+            self.text_area.insert(tk.END, "\n")
+        self.text_area.insert(tk.END, "\n".join(files) + "\n")
+
     def _go_normalize(self):
         folder = self.controller.normalize_folder.get().strip()
         if not folder:
@@ -689,7 +793,23 @@ class PageUrls(ttk.Frame):
         if not content:
             messagebox.showwarning("ALERT", "No Targets Detected.")
             return
-        self.controller.urls = [ln.strip() for ln in content.splitlines() if ln.strip()]
+        urls, st = _resolve_targets(content.splitlines())
+        if st['files'] or st['missing']:
+            resumo = (f"{len(st['files'])} arquivo(s) .txt lido(s)\n"
+                      f"{st['found']} link(s) suportado(s) encontrado(s)\n"
+                      f"{st['duplicates']} duplicado(s) removido(s)\n"
+                      f"{st['unsupported']} link(s) de outros sites ignorado(s)\n"
+                      f"\nTotal a processar: {len(urls)}")
+            if st['missing']:
+                resumo += "\n\nNão lidos:\n" + "\n".join(st['missing'][:5])
+            if not urls:
+                messagebox.showwarning("ALERT", "Nenhum link encontrado.\n\n" + resumo)
+                return
+            messagebox.showinfo("ARQUIVOS .TXT", resumo)
+        if not urls:
+            messagebox.showwarning("ALERT", "No Targets Detected.")
+            return
+        self.controller.urls = urls
         self.controller.operation_mode.set("download")
         self.controller.show_frame("PageOptions")
 

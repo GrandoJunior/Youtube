@@ -3,7 +3,7 @@
 Aplicativo desktop completo com interface grafica para download e conversao de midia do YouTube com FFmpeg e Deno.
 
 ## Badges
-![Release](https://img.shields.io/badge/release-v2.2-blue.svg)
+![Release](https://img.shields.io/badge/release-v2.3-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows-brightgreen.svg)
 ![Security](https://img.shields.io/badge/security-sanitized-success.svg)
 
@@ -78,4 +78,4 @@ A cada inicialização, o `launcher.exe` executa `updater.py` **antes** de verif
 ## Metadados do Projeto
 * **Autor:** Guido Grando (`GrandoJunior`)
 * **Tags:** python, youtube-downloader, ffmpeg, deno, desktop-app, inno-setup
-* **Versão:** `v2.2`
+* **Versão:** `v2.3`
