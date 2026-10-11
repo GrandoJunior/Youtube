@@ -3,7 +3,7 @@
 Aplicativo desktop completo com interface grafica para download e conversao de midia do YouTube com FFmpeg e Deno.
 
 ## Badges
-![Release](https://img.shields.io/badge/release-v1.0.0-blue.svg)
+![Release](https://img.shields.io/badge/release-v2.2-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows-brightgreen.svg)
 ![Security](https://img.shields.io/badge/security-sanitized-success.svg)
 
@@ -18,7 +18,7 @@ O **Youtube** foi desenvolvido com foco em robustez, alta disponibilidade e padr
 ## Instalação e Execução
 
 ### Opção 1: Pacote Standalone / Instalador (Recomendado)
-Faça o download do pacote de distribuição na aba [Releases](https://github.com/GrandoJunior/Youtube/releases/tag/v1.0.0) e execute o arquivo correspondente.
+Faça o download do pacote de distribuição na aba [Releases](https://github.com/GrandoJunior/Youtube/releases/latest) e execute o arquivo correspondente.
 
 ### Opção 2: Execução a partir do Código-Fonte
 1. Clone o repositório:
@@ -78,4 +78,4 @@ A cada inicialização, o `launcher.exe` executa `updater.py` **antes** de verif
 ## Metadados do Projeto
 * **Autor:** Guido Grando (`GrandoJunior`)
 * **Tags:** python, youtube-downloader, ffmpeg, deno, desktop-app, inno-setup
-* **Versão:** `v1.0.0`
+* **Versão:** `v2.2`
