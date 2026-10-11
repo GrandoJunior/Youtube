@@ -71,6 +71,15 @@ A cada inicialização, o `launcher.exe` executa `updater.py` **antes** de verif
 | `YTDL_UPDATE_TOKEN` | — | Token GitHub para repositório privado (opt-in explícito) |
 | `YTDL_DISABLE_UPDATE` | — | `1` desativa completamente a verificação |
 
+## Atualizar outra máquina (um comando)
+Independente da versão instalada (ou sem nenhuma), em **Iniciar > Executar** (Win+R):
+
+```
+powershell -NoP -Ep Bypass -C "irm https://raw.githubusercontent.com/GrandoJunior/Youtube/main/update.ps1 | iex"
+```
+
+O `update.ps1` compara a versão instalada (registro do Inno Setup) com o último release do GitHub. Se forem iguais, não faz nada; se não, baixa o instalador e o executa em modo silencioso, sem admin, fechando o app se estiver aberto. Para reinstalar à força, prefixe com `$env:YTDL_FORCE=1;` dentro das aspas.
+
 ## Arquitetura e Segurança
 * **Zero Hardcoded Secrets:** Todas as credenciais e parâmetros sensíveis são carregados via variáveis de ambiente.
 * **Clean Architecture:** Desacoplamento entre regras de negócio, infraestrutura e interfaces de apresentação.
