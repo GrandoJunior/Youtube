@@ -47,6 +47,7 @@ INSTALLER_EXE = os.path.join(BIN_DIR, f'YoutubeDownloader_Setup_v{APP_VERSION}.e
 ISCC_CANDIDATES = [
     os.path.join(os.environ.get('USERPROFILE', ''), r"AppData\Local\Programs\Antigravity IDE\resources\app\node_modules\innosetup\bin\ISCC.exe"),
     r"D:\dev\programs\Antigravity\resources\app\node_modules\innosetup\bin\ISCC.exe",
+    os.path.join(os.environ.get('LOCALAPPDATA', ''), r"Programs\Inno Setup 6\ISCC.exe"),  # instalação por usuário (winget --scope user)
     r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
     r"C:\Program Files\Inno Setup 6\ISCC.exe",
     r"C:\Program Files (x86)\Inno Setup 5\ISCC.exe",
