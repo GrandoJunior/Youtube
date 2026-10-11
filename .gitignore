@@ -19,3 +19,8 @@ bin/
 # Logs e Temporarios
 *.log
 *.tmp
+
+# Atualizador automatico (artefatos locais)
+.update_state.json
+*.bak
+*.new

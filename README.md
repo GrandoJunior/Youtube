@@ -48,6 +48,29 @@ Copy-Item .env.example .env
 python main.py
 ```
 
+## Atualização Automática (Git)
+A cada inicialização, o `launcher.exe` executa `updater.py` **antes** de verificar dependências e abrir a interface — assim a aplicação sempre roda a versão mais recente publicada no repositório.
+
+**Como funciona**
+* **Instalação empacotada (instalador):** o HEAD da branch remota é consultado pelo protocolo HTTP do próprio git (`/info/refs?service=git-upload-pack`); se houver commit novo, `main.py`, `setup_env.py`, `updater.py` e `splash.png` são baixados fixados naquele commit e substituídos. O último commit aplicado fica registrado em `.update_state.json`, de modo que uma inicialização sem novidades custa uma única requisição.
+* **Execução a partir do código-fonte:** se a pasta estiver dentro de um clone git, é feito `fetch` + `merge --ff-only`, somente quando a branch atual é a acompanhada. Alterações locais não commitadas, outra branch ou ausência do `git` no PATH bloqueiam a atualização (nada é sobrescrito).
+
+**Garantias**
+* **Falha aberta:** sem rede, com repositório indisponível ou timeout, a aplicação apenas inicia na versão instalada — a atualização nunca impede o uso.
+* **Aplicação atômica:** os arquivos só são substituídos após todos os downloads terminarem e serem validados (arquivos `.py` precisam compilar); qualquer falha reverte tudo pelas cópias `.bak`.
+* Registro de cada verificação em `updater.log`, no diretório de instalação.
+
+**Configuração** (variáveis de ambiente, todas opcionais)
+
+| Variável | Padrão | Descrição |
+| --- | --- | --- |
+| `YTDL_UPDATE_REPO` | `GrandoJunior/Youtube` | Repositório `owner/repo` de origem |
+| `YTDL_UPDATE_BRANCH` | `main` | Branch acompanhada |
+| `YTDL_UPDATE_TIMEOUT` | `10` | Timeout por requisição (segundos) |
+| `YTDL_UPDATE_BUDGET` | `60` | Tempo total máximo da verificação (segundos) |
+| `YTDL_UPDATE_TOKEN` | — | Token GitHub para repositório privado (opt-in explícito) |
+| `YTDL_DISABLE_UPDATE` | — | `1` desativa completamente a verificação |
+
 ## Arquitetura e Segurança
 * **Zero Hardcoded Secrets:** Todas as credenciais e parâmetros sensíveis são carregados via variáveis de ambiente.
 * **Clean Architecture:** Desacoplamento entre regras de negócio, infraestrutura e interfaces de apresentação.
