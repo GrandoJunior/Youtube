@@ -702,10 +702,13 @@ class PageUrls(ttk.Frame):
             wraplength=600)
         self._subtitle.pack(anchor="w", pady=(0, 6))
 
+        # O campo de URLs é criado aqui (ordem de foco/Tab), mas empacotado só
+        # depois dos painéis de baixo: o pack distribui o espaço na ordem de
+        # empacotamento, e o texto com expand=True cortava o painel NORMALIZE.
+        # height baixo = pedido mínimo; o expand ocupa o espaço que sobrar.
         self.text_area = scrolledtext.ScrolledText(
             self, bg="#1E1E1E", fg="#FFFFFF", insertbackground="#00FF41",
-            font=("Consolas", 10), relief="flat", wrap=tk.WORD)
-        self.text_area.pack(fill='both', expand=True, pady=(0, 4))
+            font=("Consolas", 10), relief="flat", wrap=tk.WORD, height=5)
 
         nav = _make_nav_bar(self)
         ttk.Button(nav, text="NEXT PHASE  ▶",
@@ -715,7 +718,6 @@ class PageUrls(ttk.Frame):
 
         # ── Separador visual ──
         div = ttk.Frame(self)
-        div.pack(fill='x', pady=(10, 6))
         ttk.Separator(div, orient='horizontal').pack(
             fill='x', side='left', expand=True, pady=7)
         tk.Label(div, text="  OU  ",
@@ -726,7 +728,9 @@ class PageUrls(ttk.Frame):
 
         # ── Painel: Normalizar Pasta Existente ──
         norm_lf = ttk.LabelFrame(self, text="  NORMALIZE EXISTING FILES  ")
-        norm_lf.pack(fill='x', pady=(0, 8))
+        norm_lf.pack(fill='x', side='bottom', pady=(0, 8))
+        div.pack(fill='x', side='bottom', pady=(10, 6))
+        self.text_area.pack(fill='both', expand=True, pady=(0, 4))
 
         path_row = ttk.Frame(norm_lf)
         path_row.pack(fill='x', padx=12, pady=(10, 4))
